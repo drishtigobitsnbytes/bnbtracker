@@ -23,12 +23,14 @@ async function getTeamMetrics() {
 
       const totalSent = emails?.length || 0
       const uniqueOpened = emails?.filter((e) => e.open_count > 0).length || 0
+      const totalOpens = emails?.reduce((sum, e) => sum + (e.open_count || 0), 0) || 0
       const openRate = calculateOpenRate(totalSent, uniqueOpened)
 
       return {
         user,
         total_sent: totalSent,
         unique_opened: uniqueOpened,
+        total_opens: totalOpens,
         open_rate: openRate,
       }
     })
@@ -82,7 +84,10 @@ export default async function TeamPage() {
                     Sent
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Opened
+                    Unique Opened
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total Opens
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Detected Open Rate
@@ -105,6 +110,9 @@ export default async function TeamPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {member.unique_opened}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                      {member.total_opens}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {member.open_rate}%

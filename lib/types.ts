@@ -72,6 +72,7 @@ export interface TeamMemberMetrics {
   user: User
   total_sent: number
   unique_opened: number
+  total_opens: number
   open_rate: number
 }
 
