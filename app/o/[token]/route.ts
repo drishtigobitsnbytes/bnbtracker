@@ -1,73 +1,47 @@
 import { NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { createHash } from 'crypto'
+import { recordEmailOpen } from '@/lib/record-open'
 
-const TRANSPARENT_PIXEL = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-  'base64'
+const TRANSPARENT_PIXEL = Uint8Array.from(
+  atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='),
+  (char) => char.charCodeAt(0)
 )
 
-function hashIP(ip: string): string {
-  return createHash('sha256').update(ip).digest('hex')
+const PIXEL_HEADERS = {
+  'Content-Type': 'image/png',
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+  'CDN-Cache-Control': 'no-store',
+  'Cloudflare-CDN-Cache-Control': 'no-store',
+  Pragma: 'no-cache',
+  Expires: '0',
+}
+
+export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
+
+function pixelResponse() {
+  return new NextResponse(TRANSPARENT_PIXEL, {
+    status: 200,
+    headers: PIXEL_HEADERS,
+  })
 }
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ token: string }> }
+  context: { params: Promise<{ token: string }> }
 ) {
+  const { token } = await context.params
+
+  // Fire-and-forget: record the open but don't block the pixel response.
+  // We still await to ensure it completes within the Worker's lifetime.
   try {
-    const { token } = await params
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!supabaseUrl || !serviceKey) {
-      console.error('Missing Supabase environment variables')
-      return new NextResponse(TRANSPARENT_PIXEL, {
-        status: 200,
-        headers: { 'Content-Type': 'image/png' },
-      })
-    }
-
-    const supabase = createServerClient(supabaseUrl, serviceKey, {
-      cookies: {
-        getAll() {
-          return []
-        },
-        setAll() {},
-      },
-    })
-
-    const { data: email } = await supabase
-      .from('emails')
-      .select('id')
-      .eq('tracking_token', token)
-      .single()
-
-    if (email) {
-      const userAgent = request.headers.get('user-agent') || null
-      const forwarded = request.headers.get('x-forwarded-for')
-      const ip = forwarded ? forwarded.split(',')[0] : request.headers.get('x-real-ip') || 'unknown'
-      const ipHash = ip !== 'unknown' ? hashIP(ip) : null
-
-      await supabase.from('email_events').insert({
-        email_id: email.id,
-        event_type: 'open',
-        user_agent: userAgent,
-        ip_hash: ipHash,
-      })
-    }
+    await recordEmailOpen(request, token)
   } catch (error) {
-    console.error('Tracking error:', error)
+    console.error('[Tracking] Unexpected error:', error)
   }
 
-  return new NextResponse(TRANSPARENT_PIXEL, {
-    status: 200,
-    headers: {
-      'Content-Type': 'image/png',
-      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0',
-    },
-  })
+  return pixelResponse()
+}
+
+export function HEAD() {
+  return pixelResponse()
 }
