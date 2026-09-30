@@ -1,5 +1,5 @@
-import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 import { createHash } from 'crypto'
 
 const TRANSPARENT_PIXEL = Buffer.from(
@@ -15,10 +15,29 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ token: string }> }
 ) {
-  const { token } = await params
-  const supabase = createServiceClient()
-
   try {
+    const { token } = await params
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !serviceKey) {
+      console.error('Missing Supabase environment variables')
+      return new NextResponse(TRANSPARENT_PIXEL, {
+        status: 200,
+        headers: { 'Content-Type': 'image/png' },
+      })
+    }
+
+    const supabase = createServerClient(supabaseUrl, serviceKey, {
+      cookies: {
+        getAll() {
+          return []
+        },
+        setAll() {},
+      },
+    })
+
     const { data: email } = await supabase
       .from('emails')
       .select('id')
