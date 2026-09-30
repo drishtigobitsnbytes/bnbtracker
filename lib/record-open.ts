@@ -17,15 +17,13 @@ function restHeaders(key: string) {
   }
 }
 
-// Use direct dot-notation so Next.js inlines these at build time.
-// process.env[dynamicName] does NOT get inlined and is undefined on Cloudflare Pages.
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
-const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-
 export async function recordEmailOpen(request: Request, token: string) {
-  if (!SUPABASE_URL) {
-    console.error('[Tracking] Missing NEXT_PUBLIC_SUPABASE_URL. Value:', typeof SUPABASE_URL)
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl) {
+    console.error('[Tracking] Missing NEXT_PUBLIC_SUPABASE_URL')
     return
   }
 
@@ -38,11 +36,11 @@ export async function recordEmailOpen(request: Request, token: string) {
   const ipHash = ip ? await hashIP(ip) : null
 
   // ── Path 1: RPC function (works with anon key, no service key needed) ──
-  if (ANON_KEY) {
+  if (anonKey) {
     try {
-      const rpcResponse = await fetch(`${SUPABASE_URL}/rest/v1/rpc/record_email_open`, {
+      const rpcResponse = await fetch(`${supabaseUrl}/rest/v1/rpc/record_email_open`, {
         method: 'POST',
-        headers: restHeaders(ANON_KEY),
+        headers: restHeaders(anonKey),
         body: JSON.stringify({
           p_token: token,
           p_user_agent: userAgent,
@@ -65,16 +63,16 @@ export async function recordEmailOpen(request: Request, token: string) {
   }
 
   // ── Path 2: Direct DB access with service role key ──
-  if (!SERVICE_KEY) {
+  if (!serviceKey) {
     console.error(
       '[Tracking] Missing SUPABASE_SERVICE_ROLE_KEY at runtime.',
-      'ANON_KEY available:', !!ANON_KEY,
-      'SUPABASE_URL available:', !!SUPABASE_URL
+      'anonKey available:', !!anonKey,
+      'supabaseUrl available:', !!supabaseUrl
     )
     return
   }
 
-  const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
+  const supabase = createClient(supabaseUrl, serviceKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,

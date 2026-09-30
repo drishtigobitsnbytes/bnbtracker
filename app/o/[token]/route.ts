@@ -16,7 +16,6 @@ const PIXEL_HEADERS = {
 }
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'edge'
 
 function pixelResponse() {
   return new NextResponse(TRANSPARENT_PIXEL, {
